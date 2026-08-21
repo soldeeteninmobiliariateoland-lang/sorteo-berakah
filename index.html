@@ -240,11 +240,14 @@ a{ color:inherit; text-decoration:none; }
 .premio--2 .premio__rank{ background:linear-gradient(135deg, var(--azul), var(--azul-osc)); }
 .premio--3 .premio__rank{ background:linear-gradient(135deg, var(--verde), var(--verde-osc)); }
 .premio__ilustracion{
-  height:180px; display:grid; place-items:center; margin:8px 0 18px;
-  background:#fff; border-radius:16px;
+  height:180px; display:flex; align-items:center; justify-content:center;
+  margin:8px 0 18px; background:#fff; border-radius:16px; overflow:hidden;
 }
 .premio__ilustracion svg{ width:auto; height:100%; }
-.premio__ilustracion img{ max-height:100%; max-width:90%; width:auto; object-fit:contain; }
+.premio__ilustracion img{
+  max-height:100%; max-width:100%; width:auto; height:auto;
+  object-fit:contain; min-width:0; min-height:0; display:block;
+}
 .premio h3{
   font-family:var(--display); font-weight:800; font-size:1.25rem;
   color:var(--verde-tinta); margin-bottom:8px;
@@ -386,9 +389,16 @@ a{ color:inherit; text-decoration:none; }
 .nota--2{ bottom:10%; left:0; animation-delay:1s; }
 @keyframes flota{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-10px);} }
 
-/* ===== BOTÓN FLOTANTE DE MÚSICA ===== */
+/* ===== CONTROL FLOTANTE DE MÚSICA (botón + volumen) ===== */
+.music-ctrl{ position:fixed; left:22px; bottom:22px; z-index:80; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.music-vol-wrap{
+  background:#fff; border-radius:999px; overflow:hidden;
+  width:0; height:0; opacity:0; box-shadow:var(--sombra-md);
+  display:grid; place-items:center; transition:all .25s ease;
+}
+.music-ctrl:hover .music-vol-wrap, .music-ctrl.sonando .music-vol-wrap{ width:150px; height:40px; opacity:1; }
+.music-vol{ width:118px; accent-color:#C0392B; cursor:pointer; }
 .music-float{
-  position:fixed; left:22px; bottom:22px; z-index:80;
   width:56px; height:56px; border:none; border-radius:50%; cursor:pointer;
   background:#C0392B; color:#fff; font-size:1.4rem;
   box-shadow:0 10px 30px rgba(192,57,43,.45);
@@ -397,8 +407,8 @@ a{ color:inherit; text-decoration:none; }
 }
 .music-float:hover{ transform:translateY(-3px) scale(1.05); }
 .music-float__eq{ display:none; gap:3px; align-items:flex-end; height:20px; }
-.music-float.sonando .music-float__ico{ display:none; }
-.music-float.sonando .music-float__eq{ display:flex; }
+.music-ctrl.sonando .music-float__ico{ display:none; }
+.music-ctrl.sonando .music-float__eq{ display:flex; }
 .music-float__eq i{ width:4px; height:8px; background:#fff; border-radius:2px; animation:eq .8s ease-in-out infinite; }
 .music-float__eq i:nth-child(2){ animation-delay:.2s; }
 .music-float__eq i:nth-child(3){ animation-delay:.4s; }
@@ -797,10 +807,15 @@ a{ color:inherit; text-decoration:none; }
      MÚSICA DE INTRO (tema criollo) + botón flotante
      ============================================================= -->
 <audio id="audioIntro" preload="none"></audio>
-<button class="music-float" id="musicFloat" type="button" aria-label="Reproducir o pausar la música">
-  <span class="music-float__ico" id="musicIco">🎵</span>
-  <span class="music-float__eq" aria-hidden="true"><i></i><i></i><i></i></span>
-</button>
+<div class="music-ctrl" id="musicCtrl">
+  <div class="music-vol-wrap">
+    <input class="music-vol" id="musicVol" type="range" min="0" max="100" value="80" aria-label="Volumen de la música" />
+  </div>
+  <button class="music-float" id="musicFloat" type="button" aria-label="Reproducir o pausar la música">
+    <span class="music-float__ico" id="musicIco">🎵</span>
+    <span class="music-float__eq" aria-hidden="true"><i></i><i></i><i></i></span>
+  </button>
+</div>
 
 <!-- =============================================================
      JAVASCRIPT
@@ -1011,7 +1026,7 @@ document.getElementById("year").textContent = new Date().getFullYear();
    AUDIO_VOL:  volumen de 0.0 a 1.0. */
 const AUDIO_SRC  = "Viva_la_Jarana_TEOLAND.mp3";
 const AUDIO_AUTO = true;
-const AUDIO_LOOP = false;
+const AUDIO_LOOP = true;    // el tema se repite en bucle
 const AUDIO_VOL  = 0.8;
 
 const audio = document.getElementById("audioIntro");
@@ -1019,19 +1034,28 @@ audio.src = AUDIO_SRC;
 audio.loop = AUDIO_LOOP;
 audio.volume = AUDIO_VOL;
 
+const musicCtrl     = document.getElementById("musicCtrl");
 const musicFloat    = document.getElementById("musicFloat");
+const musicVol      = document.getElementById("musicVol");
 const btnPlayCriollo = document.getElementById("btnPlayCriollo");
 let   usuarioDecidio = false;   // ¿el usuario ya pausó/activó manualmente?
 
+// Control de volumen: arranca en AUDIO_VOL y se ajusta con el deslizador.
+musicVol.value = Math.round(AUDIO_VOL * 100);
+musicVol.addEventListener("input", () => { audio.volume = musicVol.value / 100; });
+
 function sincronizarBotones(){
   const sonando = !audio.paused;
-  musicFloat.classList.toggle("sonando", sonando);
+  musicCtrl.classList.toggle("sonando", sonando);
   if(btnPlayCriollo){
     btnPlayCriollo.textContent = sonando ? "⏸ Pausar tema" : "🎵 Escuchar nuestro tema";
   }
 }
-function reproducir(){ audio.play().then(sincronizarBotones).catch(()=>{}); }
-function pausar(){ audio.pause(); sincronizarBotones(); }
+function reproducir(){
+  const p = audio.play();
+  if(p && p.catch){ p.catch(err => console.warn("No se pudo reproducir el audio:", err)); }
+}
+function pausar(){ audio.pause(); }
 function alternarMusica(){
   usuarioDecidio = true;
   if(audio.paused) reproducir(); else pausar();
@@ -1039,13 +1063,23 @@ function alternarMusica(){
 
 musicFloat.addEventListener("click", alternarMusica);
 if(btnPlayCriollo) btnPlayCriollo.addEventListener("click", alternarMusica);
-audio.addEventListener("ended", sincronizarBotones);
 
-/* Autoarranque: el navegador no deja sonar audio sin que el usuario
-   interactúe primero, así que esperamos su primer clic/scroll/tecla. */
+// La interfaz se actualiza según el estado REAL del audio (más confiable).
+audio.addEventListener("play",  sincronizarBotones);
+audio.addEventListener("pause", sincronizarBotones);
+audio.addEventListener("ended", sincronizarBotones);
+// Aviso en consola si el archivo de audio no se encuentra.
+audio.addEventListener("error", () => {
+  console.warn("No se encontró el audio '" + AUDIO_SRC + "'. Verifica que el MP3 esté subido al repositorio con ese nombre EXACTO.");
+});
+
+/* Autoarranque en la 1.ª interacción del visitante (política del navegador).
+   Si ese primer clic cae sobre el control de música, NO lo tocamos aquí:
+   el botón se encarga solo (así evitamos que se inicie y se pause a la vez). */
 if(AUDIO_AUTO){
-  const arrancar = () => {
-    if(!usuarioDecidio && audio.paused) reproducir();
+  const arrancar = (e) => {
+    const enControl = e && e.target && e.target.closest && e.target.closest("#musicCtrl");
+    if(!enControl && !usuarioDecidio && audio.paused) reproducir();
     window.removeEventListener("pointerdown", arrancar);
     window.removeEventListener("scroll", arrancar);
     window.removeEventListener("keydown", arrancar);
